@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>结冰路面制动距离演示</title>
+<style>
+/* 统一缩放基准：1rem = 16px，屏幕较窄时整体等比缩小，保证两车并排可见 */
+:root{
+  --bg:#f1f5f9;
+  --card:#ffffff;
+  --ink:#0f172a;
+  --muted:#64748b;
+  --line:#e2e8f0;
+  --blue:#2563eb;
+  --orange:#ea580c;
+  --s:1;
+  font-size:calc(16px * var(--s));
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.app{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 17.5rem;  /* 左侧演示区 + 右侧垂直操作台 */
+  gap:1.25rem;
+  align-items:start;
+  max-width:118rem;
+  margin:0 auto;
+  padding:1.4rem 1.6rem 2rem;
+}
+.main{min-width:0;display:flex;flex-direction:column;gap:0.9rem}
+
+/* 标题 */
+.head{display:flex;align-items:baseline;gap:0.9rem;flex-wrap:wrap;margin-bottom:0.9rem}
+.head h1{font-size:1.7rem;margin:0;letter-spacing:0.4px;white-space:nowrap}
+.head p{margin:0;color:var(--muted);font-size:0.86rem;line-height:1.5}
+
+.card{
+  background:var(--card);
+  border:2px solid var(--line);
+  border-radius:1.25rem;
+  box-shadow:0 4px 20px rgba(15,23,42,.05);
+  padding:0.85rem 1.1rem;
+}
+
+/* ============ 右侧垂直操作台 ============ */
+.side{position:sticky;top:1.4rem}
+.panel{
+  background:var(--card);
+  border:2px solid var(--line);
+  border-radius:1.25rem;
+  box-shadow:0 4px 20px rgba(15,23,42,.05);
+  padding:1.1rem 1.15rem 1.25rem;
+}
+.panel-title{font-size:0.78rem;font-weight:800;letter-spacing:0.12em;color:var(--muted);margin:0 0 0.9rem;text-transform:uppercase}
+.field{font-size:0.95rem;font-weight:700;margin:0 0 0.7rem;display:flex;justify-content:space-between;align-items:baseline}
+.field small{font-size:0.74rem;font-weight:400;color:var(--muted)}
+.speedbox{
+  text-align:center;background:#eff6ff;border:2px solid #bfdbfe;
+  border-radius:0.9rem;padding:0.45rem 0.5rem 0.5rem;margin-bottom:0.85rem;
+}
+.speedbox span{font-size:2.3rem;font-weight:800;color:var(--blue);line-height:1}
+.speedbox small{font-size:0.8rem;color:var(--muted);margin-left:0.3rem}
+
+/* 垂直滑块（旋转横放滑块，兼容性好） */
+.slider-zone{display:flex;justify-content:center;padding:0.3rem 0 0.7rem}
+.slider-rot{
+  height:12.5rem;width:2.6rem;position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+input[type=range]{
+  width:12.5rem;accent-color:var(--blue);height:0.6rem;cursor:pointer;margin:0;
+  transform:rotate(-90deg);flex:0 0 auto;
+}
+.slider-ends{display:flex;justify-content:space-between;font-size:0.74rem;color:var(--muted);margin:-0.45rem 0.15rem 0.6rem}
+
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:0.2rem 0 0.9rem}
+.presets>span{grid-column:1/-1;font-size:0.78rem;color:var(--muted);margin-bottom:-0.1rem}
+.presets button{
+  border:2px solid var(--line);background:#f8fafc;color:#334155;border-radius:0.7rem;
+  padding:0.5rem 0;font-size:0.86rem;cursor:pointer;
+}
+.presets button:hover{border-color:#93c5fd;background:#eff6ff;color:var(--blue)}
+button.primary{
+  width:100%;background:var(--blue);color:#fff;border:0;border-radius:0.8rem;
+  padding:0.75rem 0;font-size:1rem;font-weight:700;cursor:pointer;
+  box-shadow:0 6px 16px rgba(37,99,235,.25);
+}
+button.primary:hover{background:#1d4ed8}
+.hint{
+  font-size:0.76rem;line-height:1.55;color:var(--muted);margin-top:0.75rem;
+  padding-top:0.75rem;border-top:2px dashed var(--line);
+}
+.hint b{color:#334155}
+
+/* ============ 轨道 ============ */
+.tracks{display:flex;flex-direction:column;gap:0.9rem}
+.track{display:flex;flex-direction:column}
+.track-head{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.15rem}
+.track-title{font-size:1.1rem;font-weight:800;display:flex;align-items:center;gap:0.55rem}
+.track-title small{font-size:0.76rem;font-weight:400;color:var(--muted)}
+.dot{width:0.8rem;height:0.8rem;border-radius:50%;display:inline-block;flex:0 0 auto}
+.dot.blue{background:var(--blue)}
+.dot.orange{background:var(--orange)}
+.badge{font-size:0.82rem;font-weight:700;padding:0.25rem 0.75rem;border-radius:40px;white-space:nowrap}
+.badge.blue{background:#eff6ff;color:#1d4ed8}
+.badge.orange{background:#fff7ed;color:#c2410c}
+
+.lane-wrap{padding:0 2.6rem}
+.lane{position:relative;height:6.6rem;border-radius:0.8rem}
+.lane.dry{background:linear-gradient(180deg,#475569,#334155)}
+.lane.ice{background:linear-gradient(180deg,#dbeafe,#bfdbfe)}
+.lane .center-line{
+  position:absolute;left:0;right:0;top:50%;height:3px;transform:translateY(-50%);
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.7) 0 30px,transparent 30px 60px);
+}
+.lane.ice .center-line{background:repeating-linear-gradient(90deg,#93c5fd 0 30px,transparent 30px 60px)}
+.lane.ice::after{
+  content:"";position:absolute;inset:0;border-radius:0.8rem;pointer-events:none;
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.28) 0 6px,transparent 6px 36px);
+}
+.trail{position:absolute;left:0;top:50%;height:0.55rem;transform:translateY(-50%);border-radius:0.4rem;z-index:2}
+.trail.blue{background:#60a5fa}
+.trail.orange{background:#fb923c}
+.brake-mark{position:absolute;top:-0.6rem;bottom:-0.6rem;width:0;border-left:3px dashed #94a3b8;z-index:3}
+.brake-mark span{
+  position:absolute;bottom:0.55rem;left:0.45rem;white-space:nowrap;font-size:0.7rem;font-weight:700;
+  color:#e2e8f0;background:rgba(15,23,42,.55);padding:1px 7px;border-radius:6px;
+}
+.lane.ice .brake-mark span{color:#334155;background:rgba(255,255,255,.85)}
+/* 停车点离刹车点过近时，只保留停车标签，避免文字重叠 */
+.brake-mark.is-near span{display:none}
+.stop-flag{position:absolute;top:50%;transform:translate(-50%,-50%);z-index:6}
+.stop-flag i{display:block;width:3px;height:3.2rem;margin:0 auto;background:currentColor}
+/* 停车距离标签放在车下方，避免与“开始刹车”标签在低速时重叠 */
+.stop-flag span{
+  position:absolute;top:calc(50% + 2.1rem);left:50%;transform:translateX(-50%);
+  white-space:nowrap;font-size:0.76rem;font-weight:800;color:inherit;
+  background:rgba(255,255,255,.92);padding:1px 8px;border-radius:6px;
+}
+.stop-flag.blue{color:#1d4ed8}
+.stop-flag.orange{color:#c2410c}
+.car{position:absolute;top:50%;width:4.4rem;height:2.2rem;transform:translate(-50%,-50%);z-index:5}
+.car svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 3px rgba(0,0,0,.28))}
+.live{
+  position:absolute;top:0.25rem;left:0;transform:translateX(-50%);z-index:7;
+  font-size:0.72rem;font-weight:800;white-space:nowrap;padding:1px 9px;border-radius:12px;
+  background:rgba(15,23,42,.72);color:#fff;
+}
+.lane.ice .live{background:rgba(255,255,255,.88);color:#0f172a}
+.ruler{position:relative;height:1.9rem;margin-top:0.15rem}
+.tick{position:absolute;top:0;transform:translateX(-50%);font-size:0.7rem;color:var(--muted);text-align:center;white-space:nowrap}
+.tick::before{content:"";display:block;width:2px;height:0.42rem;background:#94a3b8;margin:0 auto 3px}
+.tick.edge{transform:translateX(-100%)}
+.tick.edge::before{margin-right:0}
+.tick.first{transform:translateX(0)}
+.tick.first::before{margin-left:0}
+.track-foot{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap}
+.scale-note{font-size:0.74rem;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0.55rem}
+.stat{background:#f8fafc;border:2px solid var(--line);border-radius:0.7rem;padding:0.35rem 0.5rem;text-align:center}
+.stat span{display:block;font-size:0.72rem;color:var(--muted);margin-bottom:1px}
+.stat b{font-size:1rem;font-weight:800}
+.stat.hl{background:#fff7ed;border-color:#fed7aa}
+.stat.hl b{color:#c2410c}
+
+/* ============ 结论条 ============ */
+.result{background:linear-gradient(135deg,#fff7ed,#ffffff);border-color:#fed7aa}
+.result-in{display:flex;align-items:center;gap:1rem 1.2rem;flex-wrap:nowrap}
+@media(max-width:900px){ .result-in{flex-wrap:wrap} }
+.big{font-size:2.6rem;font-weight:900;color:var(--orange);line-height:1;white-space:nowrap}
+.big small{font-size:1rem;margin-left:0.2rem}
+.result-text{font-size:0.92rem;line-height:1.55;flex:1 1 14rem;min-width:0}
+.result-text b{color:#c2410c;font-size:1rem}
+.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0.55rem;flex:1 1 22rem;min-width:0}
+.result-grid>div{background:#fff;border:2px solid #fed7aa;border-radius:0.7rem;padding:0.35rem 0.5rem;text-align:center;font-size:0.74rem;color:var(--muted)}
+.result-grid b{display:block;font-size:1rem;color:var(--ink);margin-top:1px}
+
+/* ============ 说明 ============ */
+details.explain{background:var(--card);border:2px solid var(--line);border-radius:1.25rem;padding:0 1.1rem}
+details.explain summary{
+  cursor:pointer;font-size:0.92rem;font-weight:800;padding:0.8rem 0;list-style:none;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+}
+details.explain summary::-webkit-details-marker{display:none}
+details.explain summary::after{content:"展开 ▾";font-size:0.76rem;font-weight:400;color:var(--muted)}
+details.explain[open] summary::after{content:"收起 ▴"}
+details.explain .body{padding:0 0 1rem;font-size:0.86rem;line-height:1.75;color:#334155}
+details.explain code{background:#f1f5f9;border-radius:6px;padding:1px 7px;font-family:Consolas,Monaco,monospace;color:#0f172a}
+details.explain ul{margin:0.5rem 0 0;padding-left:1.3rem}
+details.explain li{margin-bottom:0.35rem}
+details.explain .warn{margin-top:0.7rem;padding-top:0.7rem;border-top:2px dashed var(--line);color:var(--muted);font-size:0.78rem}
+
+/* ============ 响应式 ============ */
+@media(max-width:1080px){
+  .app{grid-template-columns:minmax(0,1fr);padding:1rem 1rem 1.6rem}
+  .side{position:static}
+  .slider-zone{height:auto}
+  .slider-rot{height:auto;width:100%}
+  input[type=range]{transform:none;width:100%}
+  .slider-ends{display:none}
+  .presets{grid-template-columns:repeat(4,1fr)}
+  .lane-wrap{padding:0 1.6rem}
+}
+@media(max-width:640px){
+  .stats,.result-grid{grid-template-columns:1fr}
+  .head h1{font-size:1.35rem}
+  .head p{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 左侧：演示区 ===== -->
+  <main class="main">
+    <div class="head">
+      <h1>结冰路面制动距离演示</h1>
+      <p>同一辆车、同一车速，只看路面差异：结冰后停车距离会变多长？</p>
+    </div>
+
+    <div class="card track">
+      <div class="track-head">
+        <div class="track-title"><span class="dot blue"></span>正常路面 <small>干燥沥青 μ≈0.7</small></div>
+        <div class="badge blue" id="dryBadge">停车总距离 —</div>
+      </div>
+      <div class="lane-wrap">
+        <div class="lane dry" id="dryLane">
+          <div class="center-line"></div>
+          <div class="brake-mark" id="dryBrakeMark"><span>开始刹车</span></div>
+          <div class="trail blue" id="dryTrail"></div>
+          <div class="stop-flag blue" id="dryFlag"><i></i><span>—</span></div>
+          <div class="car blue" id="dryCar">
+            <svg viewBox="0 0 64 32"><rect x="3" y="15" width="58" height="11" rx="4" fill="#2563eb"/><path d="M16 15 L23 7 L42 7 L51 15 Z" fill="#60a5fa"/><rect x="25" y="9" width="15" height="5" rx="1.5" fill="#e0f2fe" opacity=".9"/><circle cx="18" cy="26" r="5.5" fill="#111827"/><circle cx="18" cy="26" r="2.4" fill="#9ca3af"/><circle cx="47" cy="26" r="5.5" fill="#111827"/><circle cx="47" cy="26" r="2.4" fill="#9ca3af"/><rect x="57" y="18" width="4" height="3" rx="1" fill="#fde68a"/></svg>
+          </div>
+          <div class="live" id="dryLive">0.0 m</div>
+        </div>
+        <div class="ruler" id="dryRuler"></div>
+      </div>
+      <div class="track-foot">
+        <div class="scale-note" id="dryScale">比例尺 0 — — m</div>
+        <div class="stats">
+          <div class="stat"><span>反应距离</span><b id="dryReact">—</b></div>
+          <div class="stat"><span>制动距离</span><b id="dryBrake">—</b></div>
+          <div class="stat hl"><span>停车总距离</span><b id="dryTotal">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card track">
+      <div class="track-head">
+        <div class="track-title"><span class="dot orange"></span>结冰路面 <small>摩擦系数大幅下降 μ≈0.1</small></div>
+        <div class="badge orange" id="iceBadge">停车总距离 —</div>
+      </div>
+      <div class="lane-wrap">
+        <div class="lane ice" id="iceLane">
+          <div class="center-line"></div>
+          <div class="brake-mark" id="iceBrakeMark"><span>开始刹车</span></div>
+          <div class="trail orange" id="iceTrail"></div>
+          <div class="stop-flag orange" id="iceFlag"><i></i><span>—</span></div>
+          <div class="car orange" id="iceCar">
+            <svg viewBox="0 0 64 32"><rect x="3" y="15" width="58" height="11" rx="4" fill="#ea580c"/><path d="M16 15 L23 7 L42 7 L51 15 Z" fill="#fb923c"/><rect x="25" y="9" width="15" height="5" rx="1.5" fill="#fff7ed" opacity=".95"/><circle cx="18" cy="26" r="5.5" fill="#111827"/><circle cx="18" cy="26" r="2.4" fill="#9ca3af"/><circle cx="47" cy="26" r="5.5" fill="#111827"/><circle cx="47" cy="26" r="2.4" fill="#9ca3af"/><rect x="57" y="18" width="4" height="3" rx="1" fill="#fde68a"/></svg>
+          </div>
+          <div class="live" id="iceLive">0.0 m</div>
+        </div>
+        <div class="ruler" id="iceRuler"></div>
+      </div>
+      <div class="track-foot">
+        <div class="scale-note" id="iceScale">比例尺 0 — — m</div>
+        <div class="stats">
+          <div class="stat"><span>反应距离</span><b id="iceReact">—</b></div>
+          <div class="stat"><span>制动距离</span><b id="iceBrake">—</b></div>
+          <div class="stat hl"><span>停车总距离</span><b id="iceTotal">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card result">
+      <div class="result-in">
+        <div class="big"><span id="ratio">—</span><small>倍</small></div>
+        <div class="result-text">结冰路面的停车距离约为正常路面的 <b id="ratioText">—</b>，速度越快差距越明显。</div>
+        <div class="result-grid">
+          <div>正常路面停车<b id="cmpDry">—</b></div>
+          <div>结冰路面停车<b id="cmpIce">—</b></div>
+          <div>结冰后多出<b id="cmpExtra">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <details class="explain">
+      <summary>为什么会这样？</summary>
+      <div class="body">
+        <div>停车总距离 = 反应距离 + 制动距离</div>
+        <ul>
+          <li><code>反应距离 = 车速 × 反应时间</code>：从看到情况到踩下刹车，车仍在匀速前进。本演示按 1.0 秒计算，所以两种路面的反应距离相同。</li>
+          <li><code>制动距离 = v² ÷ (2 × μ × g)</code>：v 是车速（m/s），g = 9.8 m/s²，μ 是轮胎与路面的摩擦系数。干燥沥青 μ ≈ 0.7，结冰路面 μ ≈ 0.1，相差约 7 倍。</li>
+          <li>注意公式里是 <b>v 的平方</b>：车速提高到 2 倍，制动距离约变成 4 倍。这就是高速上更危险的原因。</li>
+        </ul>
+        <div class="warn">说明：以上是理想化估算，未考虑坡度、轮胎状况、ABS、积雪厚度和驾驶技能等因素，实际距离可能更长。仅用于理解原理，切勿据此判断安全车距。</div>
+      </div>
+    </details>
+  </main>
+
+  <!-- ===== 右侧：垂直操作台 ===== -->
+  <aside class="side">
+    <div class="panel">
+      <h2 class="panel-title">操作台</h2>
+
+      <div class="field">车速 <small>km/h</small></div>
+      <div class="speedbox"><span id="speedVal">60</span><small>km/h</small></div>
+
+      <div class="slider-zone">
+        <div class="slider-rot">
+          <input type="range" id="speed" min="20" max="120" step="5" value="60" aria-label="车速">
+        </div>
+      </div>
+      <div class="slider-ends"><span>20</span><span>120 km/h</span></div>
+
+      <div class="presets">
+        <span>常用车速</span>
+        <button data-v="30">30</button>
+        <button data-v="60">60</button>
+        <button data-v="90">90</button>
+        <button data-v="120">120</button>
+      </div>
+
+      <button class="primary" id="playBtn">▶ 开始演示</button>
+
+      <div class="hint">两条轨道使用<b>同一比例尺</b>，可直接对比停车位置。<br>滑块向上 = 车速越快。</div>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var G = 9.8, MU_DRY = 0.7, MU_ICE = 0.1, REACTION = 1.0;
+  var speed = 60, raf = null, dry, ice, scaleMax = 100;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var els = {
+    speed:$('speed'), speedVal:$('speedVal'), playBtn:$('playBtn'),
+    dryCar:$('dryCar'), iceCar:$('iceCar'),
+    dryTrail:$('dryTrail'), iceTrail:$('iceTrail'),
+    dryLive:$('dryLive'), iceLive:$('iceLive'),
+    dryFlag:$('dryFlag'), iceFlag:$('iceFlag'),
+    dryBrakeMark:$('dryBrakeMark'), iceBrakeMark:$('iceBrakeMark'),
+    dryRuler:$('dryRuler'), iceRuler:$('iceRuler'),
+    dryScale:$('dryScale'), iceScale:$('iceScale')
+  };
+
+  function calc(vKmh, mu){
+    var v = vKmh / 3.6;
+    var a = mu * G;
+    var reactDist = v * REACTION;
+    var brakeDist = (v * v) / (2 * a);
+    var brakeTime = v / a;
+    return {
+      v:v, a:a, reactDist:reactDist, brakeDist:brakeDist,
+      total:reactDist + brakeDist, brakeTime:brakeTime,
+      stopTime:REACTION + brakeTime
+    };
+  }
+
+  function niceMax(x){
+    var steps = [5,10,20,25,40,50,80,100,150,200,250,400,500,600,800,1000];
+    for (var i=0;i<steps.length;i++){ if (x <= steps[i]) return steps[i]; }
+    return Math.ceil(x/1000)*1000;
+  }
+
+  function tickStep(max){
+    var raw = max/6;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var n = raw/mag;
+    var s = n<=1 ? 1 : (n<=2 ? 2 : (n<=5 ? 5 : 10));
+    return s*mag;
+  }
+
+  function renderRuler(){
+    var step = tickStep(scaleMax), html = '', v = 0, first = true, last = 0;
+    while (v <= scaleMax + 0.001){
+      var pct = v/scaleMax*100;
+      var cls = 'tick';
+      if (first) cls += ' first';
+      else if (pct >= 99.5) cls += ' edge';
+      html += '<div class="'+cls+'" style="left:'+pct.toFixed(3)+'%">'+v+'</div>';
+      first = false;
+      last = v;
+      v += step;
+    }
+    if (last < scaleMax - 0.001) html += '<div class="tick edge" style="left:100%">'+scaleMax+' m</div>';
+    els.dryRuler.innerHTML = html;
+    els.iceRuler.innerHTML = html;
+    els.dryScale.textContent = '比例尺 0 — ' + scaleMax + ' m';
+    els.iceScale.textContent = '比例尺 0 — ' + scaleMax + ' m';
+  }
+
+  function setPos(which, pos){
+    var pct = Math.max(0, Math.min(100, pos/scaleMax*100));
+    els[which+'Car'].style.left = pct + '%';
+    els[which+'Trail'].style.width = pct + '%';
+    els[which+'Live'].style.left = pct + '%';
+    els[which+'Live'].textContent = pos.toFixed(1) + ' m';
+  }
+
+  function posAt(c, t){
+    if (t <= 0) return 0;
+    if (t <= REACTION) return c.v * t;
+    var tb = t - REACTION;
+    if (tb >= c.brakeTime) return c.total;
+    return c.reactDist + c.v*tb - 0.5*c.a*tb*tb;
+  }
+
+  function fmt(n){ return n.toFixed(1) + ' m'; }
+
+  function prepare(){
+    if (raf){ cancelAnimationFrame(raf); raf = null; }
+    speed = parseFloat(els.speed.value);
+    els.speedVal.textContent = speed;
+    dry = calc(speed, MU_DRY);
+    ice = calc(speed, MU_ICE);
+    scaleMax = niceMax(ice.total * 1.04);
+
+    renderRuler();
+
+    els.dryBrakeMark.style.left = (dry.reactDist/scaleMax*100).toFixed(3)+'%';
+    els.iceBrakeMark.style.left = (ice.reactDist/scaleMax*100).toFixed(3)+'%';
+    var NEAR = 0.12; // 停车点与刹车点间隔小于总长 12% 时隐藏“开始刹车”文字
+    els.dryBrakeMark.classList.toggle('is-near', (dry.brakeDist/scaleMax) < NEAR);
+    els.iceBrakeMark.classList.toggle('is-near', (ice.brakeDist/scaleMax) < NEAR);
+    els.dryFlag.style.left = (dry.total/scaleMax*100).toFixed(3)+'%';
+    els.iceFlag.style.left = (ice.total/scaleMax*100).toFixed(3)+'%';
+    els.dryFlag.querySelector('span').textContent = fmt(dry.total);
+    els.iceFlag.querySelector('span').textContent = fmt(ice.total);
+
+    $('dryReact').textContent = fmt(dry.reactDist);
+    $('dryBrake').textContent = fmt(dry.brakeDist);
+    $('dryTotal').textContent = fmt(dry.total);
+    $('iceReact').textContent = fmt(ice.reactDist);
+    $('iceBrake').textContent = fmt(ice.brakeDist);
+    $('iceTotal').textContent = fmt(ice.total);
+    $('dryBadge').textContent = '停车总距离 ' + fmt(dry.total);
+    $('iceBadge').textContent = '停车总距离 ' + fmt(ice.total);
+
+    var ratio = ice.total / dry.total;
+    $('ratio').textContent = ratio.toFixed(1);
+    $('ratioText').textContent = ratio.toFixed(1) + ' 倍';
+    $('cmpDry').textContent = fmt(dry.total);
+    $('cmpIce').textContent = fmt(ice.total);
+    $('cmpExtra').textContent = fmt(ice.total - dry.total);
+
+    setPos('dry', 0);
+    setPos('ice', 0);
+  }
+
+  function play(){
+    prepare();
+    els.playBtn.textContent = '↻ 重新演示';
+    var start = performance.now();
+    var animSeconds = 4.5;
+    var factor = ice.stopTime / animSeconds;
+    function frame(now){
+      var simT = (now - start)/1000 * factor;
+      setPos('dry', posAt(dry, simT));
+      setPos('ice', posAt(ice, simT));
+      if (simT < ice.stopTime){
+        raf = requestAnimationFrame(frame);
+      } else {
+        setPos('dry', dry.total);
+        setPos('ice', ice.total);
+        raf = null;
+      }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  /* 统一缩放：按视口宽度/高度把 1rem 在 12px~18px 间等比调节，
+     保证浏览器 100% 缩放时两条轨道（含最终停车位置）一屏可见。 */
+  var root = document.documentElement;
+  function fit(){
+    var w = window.innerWidth, h = window.innerHeight;
+    if (w <= 1080){ root.style.setProperty('--s', '1'); return; }
+    var byW = w / 118;
+    var byH = h / 47;
+    var s = Math.max(0.82, Math.min(1.15, Math.min(byW, byH)));
+    root.style.setProperty('--s', s.toFixed(3));
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  els.speed.addEventListener('input', prepare);
+  els.speed.addEventListener('change', play);
+  els.playBtn.addEventListener('click', play);
+  Array.prototype.forEach.call(document.querySelectorAll('.presets button'), function(b){
+    b.addEventListener('click', function(){
+      els.speed.value = b.getAttribute('data-v');
+      play();
+    });
+  });
+
+  prepare();
+  setTimeout(play, 350);
+})();
+</script>
+</body>
+</html>
